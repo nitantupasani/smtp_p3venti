@@ -14,40 +14,27 @@ const transporter = nodemailer.createTransport({
 });
 
 export async function handler(event) {
-    const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-    };
-
-    if (event.httpMethod === 'OPTIONS') {
-        return {
-            statusCode: 204,
-            headers,
-            body: '',
-        };
+    // We only need to handle the POST request now.
+    if (event.httpMethod !== 'POST') {
+        return { statusCode: 405, body: 'Method Not Allowed' };
     }
 
-    if (event.httpMethod === 'POST') {
-        try {
-            const body = JSON.parse(event.body || '{}');
-            const { to, subject, html, attachments } = body;
+    try {
+        const body = JSON.parse(event.body || '{}');
+        const { to, subject, html, attachments } = body;
 
-            if (!to) {
-                return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing 'to' address" }) };
-            }
-
-            await transporter.sendMail({
-                from: process.env.FROM_EMAIL,
-                to, subject, html, attachments,
-            });
-
-            return { statusCode: 202, headers, body: JSON.stringify({ message: 'Accepted' }) };
-        } catch (error) {
-            console.error('Email send failed:', error);
-            return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to send email.' }) };
+        if (!to) {
+            return { statusCode: 400, body: JSON.stringify({ error: "Missing 'to' address" }) };
         }
-    }
 
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+        await transporter.sendMail({
+            from: process.env.FROM_EMAIL,
+            to, subject, html, attachments,
+        });
+
+        return { statusCode: 202, body: JSON.stringify({ message: 'Accepted' }) };
+    } catch (error) {
+        console.error('Email send failed:', error);
+        return { statusCode: 500, body: JSON.stringify({ error: 'Failed to send email.' }) };
+    }
 }
