@@ -1,0 +1,8 @@
+[build]
+  functions = "functions/"
+  command = "npm install && mkdir -p functions && cp src/index.js functions/"
+
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/index"
+  status = 200
