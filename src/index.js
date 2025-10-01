@@ -1,55 +1,47 @@
 import express from "express";
 import cors from "cors";
 import nodemailer from "nodemailer";
-import serverless from "serverless-http"; // Import the new library
+import serverless from "serverless-http";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 const app = express();
-
 app.use(express.json({ limit: "20mb" }));
-app.use(cors());
 
-// --- Brevo Transporter Configuration ---
+// --- Explicit CORS Configuration ---
+// This tells the browser that requests from ANY domain are allowed.
+// For production, you should replace '*' with your frontend's actual URL.
+const corsOptions = {
+  origin: "*", 
+  methods: "POST, OPTIONS", // Allow POST and the preflight OPTIONS request
+  allowedHeaders: "Content-Type",
+};
+app.use(cors(corsOptions));
+
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
   port: process.env.EMAIL_PORT || 587,
-  secure: (process.env.EMAIL_PORT || 587) === 465,
+  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  connectionTimeout: 15000,
-  greetingTimeout: 15000,
-  socketTimeout: 20000,
 });
 
-// --- Send Email Endpoint ---
-// The path must include the function name for Netlify
+// The route is correct, no changes needed here.
 app.post("/send", (req, res) => {
-  const { to, subject, text, html, attachments } = req.body;
+  const { to, subject, html, attachments } = req.body;
 
   if (!to) {
     return res.status(400).json({ ok: false, error: "Missing 'to' email address" });
   }
 
-  // Respond immediately to the frontend to prevent timeouts
-  res.status(202).json({ ok: true, message: "Request accepted. Email will be sent." });
+  res.status(202).json({ ok: true, message: "Request accepted. Processing in background." });
 
-  // Send the email in the background
   transporter.sendMail({
     from: process.env.FROM_EMAIL,
-    to,
-    subject,
-    text,
-    html,
-    attachments: (attachments || []).map((a) => ({
-      filename: a.filename,
-      content: a.content,
-      contentType: a.contentType || "application/pdf",
-      encoding: a.encoding || "base64",
-    })),
+    to, subject, html, attachments
   }).then(info => {
     console.log("Background email sent successfully:", info.messageId);
   }).catch(err => {
@@ -57,6 +49,5 @@ app.post("/send", (req, res) => {
   });
 });
 
-// --- Export the handler for Netlify ---
-// This replaces app.listen()
+// Export the handler for Netlify
 export const handler = serverless(app);
