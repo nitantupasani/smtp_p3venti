@@ -9,7 +9,7 @@ app.use(express.json({ limit: "20mb" }));
 
 app.use(cors({
   origin: [
-    "https://<your-frontend>.onrender.com",
+    "https://smtp-p3venti.onrender.com",
     "http://localhost:5173",
     "http://localhost:3000"
   ],
