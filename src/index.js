@@ -7,13 +7,14 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
+app.use(express.json({ limit: "20mb" }));
 
 // --- Explicit CORS Configuration ---
-// This is a more robust way to handle CORS.
-// It tells the browser that requests from your local machine are allowed.
+// This allows requests from your local machine and any future production site.
 const allowedOrigins = [
   'http://localhost:3000',
-  'https://your-production-frontend-url.com' // TODO: Add your production frontend URL here later
+  'http://localhost:5173', // For Vite dev servers
+  'https://your-production-frontend-url.com' // TODO: Add your production URL
 ];
 
 const corsOptions = {
@@ -24,13 +25,21 @@ const corsOptions = {
       callback(new Error('Not allowed by CORS'));
     }
   },
-  methods: "POST, OPTIONS",
-  allowedHeaders: "Content-Type",
 };
 
-// Use the CORS middleware for all routes
+// Use the CORS middleware for the actual POST request
 app.use(cors(corsOptions));
-app.use(express.json({ limit: "20mb" }));
+
+
+// --- Manual Handler for the OPTIONS Preflight Request ---
+// This is the key change. It intercepts the browser's security check.
+app.options('/send', (req, res) => {
+  console.log('OPTIONS request received for /send');
+  res.header('Access-Control-Allow-Origin', req.headers.origin);
+  res.header('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.sendStatus(204); // Send 'No Content' status
+});
 
 
 const transporter = nodemailer.createTransport({
@@ -43,9 +52,9 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// The route is correct from our last change.
+// The POST route for sending the email
 app.post("/send", (req, res) => {
-  console.log("Received a POST request to /send");
+  console.log('POST request received for /send');
   const { to, subject, html, attachments } = req.body;
 
   if (!to) {
