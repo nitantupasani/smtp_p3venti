@@ -2,7 +2,11 @@
   functions = "functions/"
   command = "npm install && mkdir -p functions && cp src/index.js functions/"
 
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/index"
-  status = 200
+# This is the new, crucial part.
+# It adds the required CORS headers to all responses from your function.
+[[headers]]
+  for = "/.netlify/functions/index/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type"
