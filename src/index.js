@@ -9,13 +9,17 @@ dotenv.config();
 const app = express();
 app.use(express.json({ limit: "20mb" }));
 
-// --- Explicit CORS Configuration ---
-// This allows requests from your local machine and any future production site.
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:5173', // For Vite dev servers
+// Allow localhost during development and the deployed Netlify site by default.
+// Additional origins can be provided via the ALLOWED_ORIGINS environment variable.
+const defaultAllowedOrigins = [
+  "http://localhost:3000",
+  "https://smtpp3venti.netlify.app",
   'https://your-production-frontend-url.com' // TODO: Add your production URL
 ];
+
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
+  : defaultAllowedOrigins;
 
 const corsOptions = {
   origin: function (origin, callback) {
@@ -25,6 +29,9 @@ const corsOptions = {
       callback(new Error('Not allowed by CORS'));
     }
   },
+  methods: "POST, OPTIONS",
+  allowedHeaders: "Content-Type",
+  optionsSuccessStatus: 200,
 };
 
 // Use the CORS middleware for the actual POST request
