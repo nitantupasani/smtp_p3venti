@@ -19,14 +19,36 @@ app.use(cors());
 app.get("/", (_req, res) => res.type("text/plain").send("OK"));
 
 // Create the Nodemailer transporter using your environment variables
+const missingEnvVars = ["EMAIL_HOST", "EMAIL_USER", "EMAIL_PASS", "FROM_EMAIL"].filter(
+  (key) => !process.env[key]
+);
+
+if (missingEnvVars.length > 0) {
+  console.warn(
+    `Warning: Missing required email environment variables: ${missingEnvVars.join(", ")}`
+  );
+}
+
+const emailPort = Number.parseInt(process.env.EMAIL_PORT ?? "", 10);
+const connectionTimeout = Number.parseInt(process.env.EMAIL_CONNECTION_TIMEOUT ?? "15000", 10);
+const greetingTimeout = Number.parseInt(process.env.EMAIL_GREETING_TIMEOUT ?? "15000", 10);
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,   // Should be smtp.gmail.com
-  port: 465,                      // Use 465 for SSL
-  secure: true,                   // Must be true for port 465
+  host: process.env.EMAIL_HOST, // e.g., smtp.gmail.com
+  port: Number.isFinite(emailPort) ? emailPort : 465,
+  secure:
+    process.env.EMAIL_SECURE !== undefined
+      ? process.env.EMAIL_SECURE.toLowerCase() === "true"
+      : !Number.isFinite(emailPort) || emailPort === 465,
+  connectionTimeout: Number.isFinite(connectionTimeout) ? connectionTimeout : 15000,
+  greetingTimeout: Number.isFinite(greetingTimeout) ? greetingTimeout : 15000,                  // Must be true for port 465
   auth: {
-    user: process.env.EMAIL_USER, // Your full gmail address
-    pass: process.env.EMAIL_PASS,   // Your 16-character App Password
+    user: process.env.EMAIL_USER, // Your full email address
+    pass: process.env.EMAIL_PASS, // Your provider password or app password
   },
+  tls:
+    process.env.EMAIL_TLS_REJECT_UNAUTHORIZED?.toLowerCase() === "false"
+      ? { rejectUnauthorized: false }
+      : undefined,
 });
 
 // Endpoint to handle sending emails
@@ -42,22 +64,33 @@ app.post("/send", (req, res) => {
   res.status(202).json({ ok: true, message: "Request accepted. Email will be sent." });
 
   // Process the email sending in the background
+const normalizedAttachments = Array.isArray(attachments)
+    ? attachments.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+        contentType: a.contentType || "application/pdf",
+        encoding: a.encoding || "base64",
+      }))
+    : undefined;
+
   transporter.sendMail({
     from: process.env.FROM_EMAIL,
     to,
     subject,
     text,
     html,
-    attachments: (attachments || []).map((a) => ({
-      filename: a.filename,
-      content: a.content,
-      contentType: a.contentType || "application/pdf",
-      encoding: a.encoding || "base64",
-    })),
+    attachments: normalizedAttachments,
   }).then(info => {
     console.log("Email sent successfully in background:", info.messageId);
   }).catch(err => {
-    console.error("Background email send failed:", err?.message || err);
+    console.error("Background email send failed:", {
+      message: err?.message || err,
+      code: err?.code,
+      command: err?.command,
+      host: transporter.options.host,
+      port: transporter.options.port,
+      secure: transporter.options.secure,
+    });
   });
 });
 
