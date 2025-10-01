@@ -7,17 +7,31 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-app.use(express.json({ limit: "20mb" }));
 
 // --- Explicit CORS Configuration ---
-// This tells the browser that requests from ANY domain are allowed.
-// For production, you should replace '*' with your frontend's actual URL.
+// This is a more robust way to handle CORS.
+// It tells the browser that requests from your local machine are allowed.
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://your-production-frontend-url.com' // TODO: Add your production frontend URL here later
+];
+
 const corsOptions = {
-  origin: "*", 
-  methods: "POST, OPTIONS", // Allow POST and the preflight OPTIONS request
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: "POST, OPTIONS",
   allowedHeaders: "Content-Type",
 };
+
+// Use the CORS middleware for all routes
 app.use(cors(corsOptions));
+app.use(express.json({ limit: "20mb" }));
+
 
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
@@ -29,8 +43,9 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// The route is correct, no changes needed here.
+// The route is correct from our last change.
 app.post("/send", (req, res) => {
+  console.log("Received a POST request to /send");
   const { to, subject, html, attachments } = req.body;
 
   if (!to) {
