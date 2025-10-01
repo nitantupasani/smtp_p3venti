@@ -32,6 +32,9 @@ if (missingEnvVars.length > 0) {
 const emailPort = Number.parseInt(process.env.EMAIL_PORT ?? "", 10);
 const connectionTimeout = Number.parseInt(process.env.EMAIL_CONNECTION_TIMEOUT ?? "15000", 10);
 const greetingTimeout = Number.parseInt(process.env.EMAIL_GREETING_TIMEOUT ?? "15000", 10);
+const socketTimeout = Number.parseInt(process.env.EMAIL_SOCKET_TIMEOUT ?? "20000", 10);
+const parsedIpFamily = Number.parseInt(process.env.EMAIL_IP_FAMILY ?? "", 10);
+const ipFamily = parsedIpFamily === 4 || parsedIpFamily === 6 ? parsedIpFamily : undefined;
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST, // e.g., smtp.gmail.com
   port: Number.isFinite(emailPort) ? emailPort : 465,
@@ -40,7 +43,9 @@ const transporter = nodemailer.createTransport({
       ? process.env.EMAIL_SECURE.toLowerCase() === "true"
       : !Number.isFinite(emailPort) || emailPort === 465,
   connectionTimeout: Number.isFinite(connectionTimeout) ? connectionTimeout : 15000,
-  greetingTimeout: Number.isFinite(greetingTimeout) ? greetingTimeout : 15000,                  // Must be true for port 465
+  greetingTimeout: Number.isFinite(greetingTimeout) ? greetingTimeout : 15000,
+  socketTimeout: Number.isFinite(socketTimeout) ? socketTimeout : 20000,
+  family: ipFamily,                  
   auth: {
     user: process.env.EMAIL_USER, // Your full email address
     pass: process.env.EMAIL_PASS, // Your provider password or app password
@@ -101,7 +106,7 @@ app.post("/send", (req, res) => {
   res.status(202).json({ ok: true, message: "Request accepted. Email will be sent." });
 
   // Process the email sending in the background
-const normalizedAttachments = Array.isArray(attachments)
+  const normalizedAttachments = Array.isArray(attachments)
     ? attachments.map((a) => ({
         filename: a.filename,
         content: a.content,
