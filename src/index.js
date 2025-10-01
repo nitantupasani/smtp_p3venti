@@ -51,6 +51,43 @@ const transporter = nodemailer.createTransport({
       : undefined,
 });
 
+const parsedRetryCount = Number.parseInt(process.env.EMAIL_MAX_RETRIES ?? "2", 10);
+const maxAdditionalEmailRetries =
+  Number.isFinite(parsedRetryCount) && parsedRetryCount >= 0 ? parsedRetryCount : 2;
+const parsedRetryDelay = Number.parseInt(process.env.EMAIL_RETRY_DELAY_MS ?? "5000", 10);
+const emailRetryDelayMs = Number.isFinite(parsedRetryDelay) && parsedRetryDelay >= 0 ? parsedRetryDelay : 5000;
+const retryableErrorCodes = new Set(["ETIMEDOUT", "ECONNECTION", "ECONNRESET", "EAI_AGAIN"]);
+
+const sendEmailWithRetry = (mailOptions, attempt = 0) => {
+  transporter
+    .sendMail(mailOptions)
+    .then((info) => {
+      console.log("Email sent successfully in background:", info.messageId);
+    })
+    .catch((err) => {
+      const attemptNumber = attempt + 1;
+      const shouldRetry =
+        retryableErrorCodes.has(err?.code) && attempt < maxAdditionalEmailRetries;
+
+      console.error("Background email send failed:", {
+        message: err?.message || err,
+        code: err?.code,
+        command: err?.command,
+        host: transporter.options.host,
+        port: transporter.options.port,
+        secure: transporter.options.secure,
+        attempt: attemptNumber,
+        maxAttempts: maxAdditionalEmailRetries + 1,
+      });
+
+      if (shouldRetry) {
+        setTimeout(() => {
+          sendEmailWithRetry(mailOptions, attempt + 1);
+        }, emailRetryDelayMs);
+      }
+    });
+};
+
 // Endpoint to handle sending emails
 app.post("/send", (req, res) => {
   const { to, subject, text, html, attachments } = req.body;
@@ -73,24 +110,13 @@ const normalizedAttachments = Array.isArray(attachments)
       }))
     : undefined;
 
-  transporter.sendMail({
+  sendEmailWithRetry({
     from: process.env.FROM_EMAIL,
     to,
     subject,
     text,
     html,
     attachments: normalizedAttachments,
-  }).then(info => {
-    console.log("Email sent successfully in background:", info.messageId);
-  }).catch(err => {
-    console.error("Background email send failed:", {
-      message: err?.message || err,
-      code: err?.code,
-      command: err?.command,
-      host: transporter.options.host,
-      port: transporter.options.port,
-      secure: transporter.options.secure,
-    });
   });
 });
 
